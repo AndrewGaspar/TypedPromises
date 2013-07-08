@@ -1,13 +1,13 @@
 {
   "name": "typedpromises",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "TypedPromise ============",
   "main": "TypedPromises.js",
   "directories": {
     "test": "test"
   },
   "scripts": {
-	"prepublish": "tsc -d -c TypedPromises.ts",
+    "prepublish": "tsc -d -c TypedPromises.ts",
     "test": "mocha"
   },
   "repository": {
