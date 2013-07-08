@@ -7,27 +7,25 @@ You may use this software for free without restrictions as long as this header i
 Please contribute any fixes to https://github.com/AndrewGaspar/TypedPromises
 *******************************/
 
-/// <reference path="definitions/node.d.ts" />
-
 /*
 	Ensures the promise matches an APlusPromise implementation.
 	@param promise A promise that is thenable.
 */
-function AGPromise<T>(promise: AGPromise.APlusPromise<T>): AGPromise.APlusPromise<T>;
+function TypedPromises<T>(promise: TypedPromises.APlusPromise<T>): TypedPromises.APlusPromise<T>;
 
 /*
 	Wraps a value as a promise.
 	@param value The value to be promised.
 */
-function AGPromise<T>(value: T): AGPromise.APlusPromise<T>;
-function AGPromise<T>(valueOrPromise): AGPromise.APlusPromise<T>{
-	return AGPromise.promisify(valueOrPromise);
+function TypedPromises<T>(value: T): TypedPromises.APlusPromise<T>;
+function TypedPromises<T>(valueOrPromise): TypedPromises.APlusPromise<T> {
+	return TypedPromises.promisify(valueOrPromise);
 }
 
 /**
   *	A module with functions for creating deferred objects that can be resolve and with other useful related functions.
   */
-module AGPromise {
+module TypedPromises {
 	/**
 	  *	Checks if a value is a function.
 	  *	http://stackoverflow.com/questions/5999998/how-can-i-check-if-a-javascript-variable-is-function-type
@@ -64,6 +62,10 @@ module AGPromise {
 		then<U>(onFulfill: (value: T) => APlusPromise<U>, onReject?: (reason) => IPromise<U>): APlusPromise<U>;
 	}
 
+	/* To support environments with process.nextTick and/or setImmediate */
+	declare function setImmediate(f: Function): void;
+	declare var process: { nextTick(f: Function): void };
+
 	/**
 	  *	This function defers a function to run in a later turn of the event loop.
 	  *
@@ -75,7 +77,7 @@ module AGPromise {
 		if (process && process.nextTick) return f => process.nextTick(f);
 
 		if (setImmediate) return setImmediate;
-		
+
 		return function (f) { setTimeout(f, 0); };
 	})();
 
@@ -137,10 +139,19 @@ module AGPromise {
 		_reason;
 	}
 
+	export interface IDeferral<T> {
+		resolve(promise: APlusPromise<T>): void;
+		resolve(value: T): void;
+
+		reject(reason): void;
+
+		promise: APlusPromise<T>;
+	}
+
 	/**
 	  * This class represents a deferral. It can be used to create a promise. Offers functions for fulfilling or rejecting a function.
 	  */
-	export class Deferral<T> {
+	class _deferral<T> {
 		private _isPending: bool = true;
 		private _isResolved: bool = false;
 		private _isRejected: bool = false;
@@ -148,16 +159,19 @@ module AGPromise {
 		private _fulfillQueue = createFunctionQueue();
 		private _rejectQueue = createFunctionQueue();
 
-		private promise: TypedPromise<T>;
+		public promise;
 
-		public getPromise(): APlusPromise<T> {
-			return this.promise;
-		}
+		public resolve: (value: T) => void;
+		public reject: (reason) => void;
 
 		constructor() {
 			var def = this;
 
-			this.promise = <TypedPromise<T>>{
+			this.resolve = (value: any) => (isPromise(value)) ? value.then(v => def._onResolve(v), r => def._onReject(r)) : def._onResolve(value);
+
+			this.reject = reason => def._onReject(reason);
+
+			this.promise = {
 				_isAGPromise: true,
 				then: function (onFulfilled, onRejected) {
 					var def2 = createDeferral();
@@ -188,19 +202,9 @@ module AGPromise {
 						}
 					});
 
-					return def2.getPromise();
+					return def2.promise;
 				}
 			}
-		}
-
-		public resolve(value: T);
-		public resolve(promise: APlusPromise<T>);
-		public resolve(valueOrPromise: any) {
-			(isPromise(valueOrPromise)) ? valueOrPromise.then(v => this._onResolve(v), r => this._onReject(r)) : this._onResolve(valueOrPromise);
-		}
-
-		public reject(reason) {
-			this._onReject(reason);
 		}
 
 		private _onResolve(val) {
@@ -239,25 +243,25 @@ module AGPromise {
 	/**
 	  *	Creates a Deferral object.
 	  */
-	export function createDeferral<T>() {
-		return new Deferral<T>();
+	export function createDeferral<T>(): IDeferral<T> {
+		return new _deferral<T>();
 	}
 
 	export function promisify<T>(promise: APlusPromise<T>): APlusPromise<T>;
 	export function promisify<T>(value: T): APlusPromise<T>;
 	export function promisify<T>(valueOrPromise): APlusPromise<T> {
 		if (isAGPromise(valueOrPromise)) return valueOrPromise;
-		
+
 		var def = createDeferral<T>();
 		def.resolve(valueOrPromise);
-		return def.getPromise();
+		return def.promise;
 	}
 
 	export function rejectify(error): APlusPromise<any> {
 		var def = createDeferral();
 		def.reject(error);
-		return def.getPromise();
+		return def.promise;
 	}
 }
 
-export = AGPromise;
+export = TypedPromises;
