@@ -56,10 +56,10 @@ module TypedPromises {
 	  *	This interface represents a generic promise conforming to the APlusPromise interface.
 	  */
 	export interface APlusPromise<T> {
-		then<U>(onFulfill: (value: T) => U, onReject?: (reason) => U): APlusPromise<U>;
+		then<U>(onFulfill: (value: T) => APlusPromise<U>, onReject?: (reason) => IPromise<U>): APlusPromise<U>;
 		then<U>(onFulfill: (value: T) => APlusPromise<U>, onReject?: (reason) => U): APlusPromise<U>;
 		then<U>(onFulfill: (value: T) => U, onReject?: (reason) => IPromise<U>): APlusPromise<U>;
-		then<U>(onFulfill: (value: T) => APlusPromise<U>, onReject?: (reason) => IPromise<U>): APlusPromise<U>;
+		then<U>(onFulfill: (value: T) => U, onReject?: (reason) => U): APlusPromise<U>;
 	}
 
 	/* To support environments with process.nextTick and/or setImmediate */
@@ -74,8 +74,6 @@ module TypedPromises {
 	  * @param func The function to be deferred.
 	  */
 	export var deferFunction: (func: Function) => void = (function () {
-		if (process && process.nextTick) return f => process.nextTick(f);
-
 		if (setImmediate) return setImmediate;
 
 		return function (f) { setTimeout(f, 0); };
@@ -140,11 +138,30 @@ module TypedPromises {
 	}
 
 	export interface IDeferral<T> {
+		/**
+			Resolves a deferral with a promise conforming to the APlusPromise interface.
+			The deferral's promise should take the value of the promise supplied.
+
+			@param promise A promise to resolve the deferral with.
+		*/
 		resolve(promise: APlusPromise<T>): void;
+
+		/**
+			Resolves a deferral with a value.
+
+			@param value The value to resolve the Deferral with.
+		*/
 		resolve(value: T): void;
 
+		/**
+			Rejects a promise with the supplied reason.
+			@param reason The reason the deferral failed.
+		*/
 		reject(reason): void;
 
+		/**
+			The promise that the deferral is crafting.
+		*/
 		promise: APlusPromise<T>;
 	}
 
@@ -247,7 +264,18 @@ module TypedPromises {
 		return new _deferral<T>();
 	}
 
+	/**
+		Returns a TypedPromises promise from any standard APlusPromise conforming promise.
+
+		@param promise The promise to TypedPromisify.
+	*/
 	export function promisify<T>(promise: APlusPromise<T>): APlusPromise<T>;
+
+	/**
+		Returns a TypedPromises promise fulfilled with the value provided.
+
+		@param value The value to be promised.
+	*/
 	export function promisify<T>(value: T): APlusPromise<T>;
 	export function promisify<T>(valueOrPromise): APlusPromise<T> {
 		if (isAGPromise(valueOrPromise)) return valueOrPromise;
@@ -257,9 +285,14 @@ module TypedPromises {
 		return def.promise;
 	}
 
-	export function rejectify(error): APlusPromise<any> {
+	/**
+		Returns a TypedPromises promise rejected with the reason provided.
+
+		@param reason The reason for the rejected promise
+	*/
+	export function rejectify(reason): APlusPromise<any> {
 		var def = createDeferral();
-		def.reject(error);
+		def.reject(reason);
 		return def.promise;
 	}
 }
